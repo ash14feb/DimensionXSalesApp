@@ -20,7 +20,7 @@ router.post('/login', async (req, res) => {
         }
 
         // Check if user exists
-        const [users] = await db.query(
+        const users = await db.query(
             'SELECT * FROM users WHERE username = ? AND is_active = 1',
             [username]
         );
