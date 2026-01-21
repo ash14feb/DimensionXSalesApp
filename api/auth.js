@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../utils/database');
+const { authMiddleware, authorize } = require('../middleware/auth');
 
 // @route   POST /api/auth/login
 // @desc    Login user
@@ -19,21 +20,13 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Check if user exists
-        const users= await db.query(
+        // Check if user exists - CHANGED: removed [] from db.query()
+        const users = await db.query(
             'SELECT * FROM users WHERE username = ? AND is_active = 1',
             [username]
         );
-        console.log(users);
-        if (users.length === 0) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid credentials'
-            });
-        }
 
-        const user = users[0];
-        console.log('Users found:', users.length); // Debug log
+        console.log('Users found:', users ? users.length : 0); // Debug log
 
         if (!users || users.length === 0) {
             console.log('No user found for username:', username);
@@ -42,6 +35,9 @@ router.post('/login', async (req, res) => {
                 message: 'Invalid credentials'
             });
         }
+
+        const user = users[0];
+
         // Check password
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
@@ -79,7 +75,7 @@ router.post('/login', async (req, res) => {
 // @route   POST /api/auth/change-password
 // @desc    Change password
 // @access  Private
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', authMiddleware, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
         const userId = req.user.user_id;
@@ -98,11 +94,18 @@ router.post('/change-password', async (req, res) => {
             });
         }
 
-        // Get user current password
-        const [users] = await db.query(
+        // Get user current password - CHANGED: removed []
+        const users = await db.query(
             'SELECT password_hash FROM users WHERE user_id = ?',
             [userId]
         );
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
 
         // Verify current password
         const isPasswordValid = await bcrypt.compare(currentPassword, users[0].password_hash);
@@ -135,16 +138,6 @@ router.post('/change-password', async (req, res) => {
         });
     }
 });
-
-module.exports = router;
-
-
-// api/auth.js - Add these routes
-
-
-const { authMiddleware, authorize } = require('../middleware/auth');
-
-// ... existing login routes ...
 
 // @route   POST /api/auth/create-user
 // @desc    Create new user (Admin only)
@@ -185,13 +178,13 @@ router.post('/create-user', authMiddleware, authorize('admin'), async (req, res)
             });
         }
 
-        // Check if username already exists
-        const [existingUsers] = await db.query(
+        // Check if username already exists - CHANGED: removed []
+        const existingUsers = await db.query(
             'SELECT user_id FROM users WHERE username = ?',
             [username]
         );
 
-        if (existingUsers.length > 0) {
+        if (existingUsers && existingUsers.length > 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Username already exists'
@@ -205,27 +198,27 @@ router.post('/create-user', authMiddleware, authorize('admin'), async (req, res)
         // Insert new user
         const result = await db.query(
             `INSERT INTO users (
-        username, 
-        password_hash, 
-        full_name, 
-        user_type, 
-        assigned_store
-      ) VALUES (?, ?, ?, ?, ?)`,
+                username, 
+                password_hash, 
+                full_name, 
+                user_type, 
+                assigned_store
+            ) VALUES (?, ?, ?, ?, ?)`,
             [username, password_hash, full_name, user_type, assigned_store]
         );
 
-        // Get the created user (excluding password)
-        const [newUser] = await db.query(
+        // Get the created user (excluding password) - CHANGED: removed []
+        const newUser = await db.query(
             `SELECT 
-        user_id,
-        username,
-        full_name,
-        user_type,
-        assigned_store,
-        is_active,
-        created_at
-      FROM users 
-      WHERE user_id = ?`,
+                user_id,
+                username,
+                full_name,
+                user_type,
+                assigned_store,
+                is_active,
+                created_at
+            FROM users 
+            WHERE user_id = ?`,
             [result.insertId]
         );
 
@@ -248,17 +241,18 @@ router.post('/create-user', authMiddleware, authorize('admin'), async (req, res)
 // @access  Private (Admin only)
 router.get('/users', authMiddleware, authorize('admin'), async (req, res) => {
     try {
+        // CHANGED: removed []
         const users = await db.query(
             `SELECT 
-        user_id,
-        username,
-        full_name,
-        user_type,
-        assigned_store,
-        is_active,
-        created_at
-      FROM users 
-      ORDER BY created_at DESC`
+                user_id,
+                username,
+                full_name,
+                user_type,
+                assigned_store,
+                is_active,
+                created_at
+            FROM users 
+            ORDER BY created_at DESC`
         );
 
         res.json({
@@ -287,13 +281,13 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
             is_active
         } = req.body;
 
-        // Check if user exists
-        const [existingUsers] = await db.query(
+        // Check if user exists - CHANGED: removed []
+        const existingUsers = await db.query(
             'SELECT * FROM users WHERE user_id = ?',
             [id]
         );
 
-        if (existingUsers.length === 0) {
+        if (!existingUsers || existingUsers.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
@@ -351,23 +345,23 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
         // Update user
         await db.query(
             `UPDATE users SET 
-        ${updates.join(', ')}
-      WHERE user_id = ?`,
+                ${updates.join(', ')}
+            WHERE user_id = ?`,
             values
         );
 
-        // Get updated user
-        const [updatedUser] = await db.query(
+        // Get updated user - CHANGED: removed []
+        const updatedUser = await db.query(
             `SELECT 
-        user_id,
-        username,
-        full_name,
-        user_type,
-        assigned_store,
-        is_active,
-        created_at
-      FROM users 
-      WHERE user_id = ?`,
+                user_id,
+                username,
+                full_name,
+                user_type,
+                assigned_store,
+                is_active,
+                created_at
+            FROM users 
+            WHERE user_id = ?`,
             [id]
         );
 
@@ -400,13 +394,13 @@ router.post('/change-password/:id', authMiddleware, authorize('admin'), async (r
             });
         }
 
-        // Check if user exists
-        const [existingUsers] = await db.query(
+        // Check if user exists - CHANGED: removed []
+        const existingUsers = await db.query(
             'SELECT * FROM users WHERE user_id = ?',
             [id]
         );
 
-        if (existingUsers.length === 0) {
+        if (!existingUsers || existingUsers.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
