@@ -33,7 +33,15 @@ router.post('/login', async (req, res) => {
         }
 
         const user = users[0];
+        console.log('Users found:', users.length); // Debug log
 
+        if (!users || users.length === 0) {
+            console.log('No user found for username:', username);
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
         // Check password
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
