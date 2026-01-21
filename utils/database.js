@@ -40,13 +40,11 @@ AL3rig==
             },
             waitForConnections: true,
             connectionLimit: 10,
-            queueLimit: 0,
-            enableKeepAlive: true,
-            keepAliveInitialDelay: 0
+            queueLimit: 0
         });
 
         // For debugging
-        console.log(process.env.DB_HOST);
+        console.log('testenv');
     }
 
     async query(sql, params) {
