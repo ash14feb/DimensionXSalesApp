@@ -133,11 +133,7 @@ module.exports = router;
 
 // api/auth.js - Add these routes
 
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('../utils/database');
+
 const { authMiddleware, authorize } = require('../middleware/auth');
 
 // ... existing login routes ...
