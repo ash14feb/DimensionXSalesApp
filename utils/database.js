@@ -45,6 +45,9 @@ AL3rig==
             enableKeepAlive: true,
             keepAliveInitialDelay: 0
         });
+
+        // For debugging
+        console.log(process.env.DB_HOST);
     }
 
     async query(sql, params) {
