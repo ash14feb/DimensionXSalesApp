@@ -9,7 +9,7 @@ class Database {
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
-            port: process.env.DB_PORT || 19693,,
+            port: process.env.DB_PORT || 19693,
             ssl: {
                 rejectUnauthorized: false,  // CHANGE THIS LINE - Accept self-signed certs
                 ca: `-----BEGIN CERTIFICATE-----
