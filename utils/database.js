@@ -44,7 +44,7 @@ AL3rig==
         });
 
         // For debugging
-        console.log('testenv');
+        console.log(process.env.DB_NAME );
     }
 
     async query(sql, params) {
