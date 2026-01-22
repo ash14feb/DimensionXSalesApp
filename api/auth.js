@@ -27,7 +27,7 @@ router.post('/login', async (req, res) => {
         );
 
         console.log('Users found:', users ? users.length : 0); // Debug log
-
+        console.log('JWT_SECRET=' + require('crypto').randomBytes(64).toString('hex'));
         if (!users || users.length === 0) {
             console.log('No user found for username:', username);
             return res.status(401).json({
@@ -153,7 +153,6 @@ router.post('/create-user', authMiddleware, authorize('admin'), async (req, res)
             user_type,
             assigned_store
         } = req.body;
-
         // Validation
         if (!username || !password || !full_name || !user_type || !assigned_store) {
             return res.status(400).json({
