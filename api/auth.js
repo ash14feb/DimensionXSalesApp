@@ -343,7 +343,7 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
         const hashedPassword = '';
         if (password !== undefined) {
             const salt = await bcrypt.genSalt(10);
-            hashedPassword = await bcrypt.hash(newPassword, salt);
+            hashedPassword = await bcrypt.hash(password, salt);
             updates.push('password_hash = ?');
             values.push(hashedPassword);
         }
