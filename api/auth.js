@@ -279,7 +279,8 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
             full_name,
             user_type,
             assigned_store,
-            is_active
+            is_active,
+            password
         } = req.body;
 
         // Check if user exists - CHANGED: removed []
@@ -339,6 +340,14 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
                 message: 'No fields to update'
             });
         }
+        const hashedPassword = '';
+        if (password !== undefined) {
+            const salt = await bcrypt.genSalt(10);
+            hashedPassword = await bcrypt.hash(newPassword, salt);
+            updates.push('password_hash = ?');
+            values.push(hashedPassword);
+        }
+
 
         // Add user_id to values
         values.push(id);
