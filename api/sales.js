@@ -70,8 +70,7 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
                     booking_amount = booking_amount + ?,
                     total_customers = total_customers + ?,
                     total_amount = total_amount + ?,
-                    notes = COALESCE(?, notes),
-                    updated_at = NOW()
+                    notes = COALESCE(?, notes)
                  WHERE sale_id = ?`,
                 [
                     cash_amount,
