@@ -17,6 +17,9 @@ router.use(authMiddleware);
 // @route   POST /api/sales
 // @desc    Create a new sale
 // @access  Private (Staff, Manager, Admin)
+// @route   POST /api/sales
+// @desc    Create or Update daily sale per store
+// @access  Private (Staff, Manager, Admin)
 router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
         const {
@@ -28,78 +31,200 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
             product_description = null,
             total_customers = 1,
             notes = null,
-            sale_date = null,
-            sale_time = null,
-            sale_datetime = null
+            sale_date,
+            sale_time,
+            sale_datetime
         } = req.body;
 
         const user_id = req.user.user_id;
 
-        // Validate required fields
-        if (!store_id) {
+        if (!store_id || !sale_date) {
             return res.status(400).json({
                 success: false,
-                message: 'Store ID is required'
+                message: 'store_id and sale_date are required'
             });
         }
 
-        // Calculate total amount
-        const total_amount = parseFloat(cash_amount) + parseFloat(upi_amount) +
-            parseFloat(card_amount) + parseFloat(booking_amount);
+        const total_amount =
+            Number(cash_amount) +
+            Number(upi_amount) +
+            Number(card_amount) +
+            Number(booking_amount);
 
-        // Get current date and time
-        //const sale_date = new Date().toISOString().split('T')[0];
-        //const sale_time = new Date().toTimeString().split(' ')[0];
-        //const sale_datetime = new Date();
+        // 🔍 Check if sale already exists for store + date
+        const existing = await db.query(
+            `SELECT sale_id FROM sales 
+             WHERE store_id = ? AND sale_date = ?`,
+            [store_id, sale_date]
+        );
 
-        // Insert sale 
+        // 🔁 UPDATE existing record
+        if (existing.length > 0) {
+            const saleId = existing[0].sale_id;
+
+            await db.query(
+                `UPDATE sales SET
+                    cash_amount = cash_amount + ?,
+                    upi_amount = upi_amount + ?,
+                    card_amount = card_amount + ?,
+                    booking_amount = booking_amount + ?,
+                    total_customers = total_customers + ?,
+                    total_amount = total_amount + ?,
+                    notes = COALESCE(?, notes),
+                    updated_at = NOW()
+                 WHERE sale_id = ?`,
+                [
+                    cash_amount,
+                    upi_amount,
+                    card_amount,
+                    booking_amount,
+                    total_customers,
+                    total_amount,
+                    notes,
+                    saleId
+                ]
+            );
+
+            return res.json({
+                success: true,
+                message: 'Sale updated for the day',
+                sale_id: saleId
+            });
+        }
+
+        // ➕ INSERT new record
         const result = await db.query(
             `INSERT INTO sales (
-        store_id, user_id, sale_date, sale_time, sale_datetime,
-        cash_amount, upi_amount, card_amount, booking_amount,
-        product_description, total_customers, total_amount, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                store_id, user_id, sale_date, sale_time, sale_datetime,
-                cash_amount, upi_amount, card_amount, booking_amount,
-                product_description, total_customers, total_amount, notes
-            ]
-        );
-
-        // Get store info for response
-        const [stores] = await db.query(
-            'SELECT store_name, store_type FROM stores WHERE store_id = ?',
-            [store_id]
-        );
-
-        res.status(201).json({
-            success: true,
-            message: 'Sale recorded successfully',
-            sale_id: result.insertId,
-            sale_data: {
                 store_id,
-                store_name: stores[0]?.store_name,
-                store_type: stores[0]?.store_type,
+                user_id,
                 sale_date,
                 sale_time,
+                sale_datetime,
                 cash_amount,
                 upi_amount,
                 card_amount,
                 booking_amount,
-                total_amount,
+                product_description,
                 total_customers,
-                product_description
-            }
+                total_amount,
+                notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                store_id,
+                user_id,
+                sale_date,
+                sale_time,
+                sale_datetime,
+                cash_amount,
+                upi_amount,
+                card_amount,
+                booking_amount,
+                product_description,
+                total_customers,
+                total_amount,
+                notes
+            ]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Sale created for the day',
+            sale_id: result.insertId
         });
+
     } catch (error) {
-        console.error('Create sale error:', error);
+        console.error('Create/Update sale error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error recording sale'
+            message: 'Error saving sale'
         });
     }
 });
 
+
+// @route   GET /api/sales/day
+// @desc    Get sales data for a specific day
+// @access  Private (Staff, Manager, Admin)
+router.get('/day', authorize('staff', 'manager', 'admin'), async (req, res) => {
+    try {
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({
+                success: false,
+                message: 'date is required in YYYY-MM-DD format'
+            });
+        }
+
+        const user = req.user;
+
+        let query = `
+            SELECT
+                s.sale_id,
+                s.sale_date,
+                s.sale_time,
+                s.store_id,
+                st.store_name,
+                st.store_type,
+                s.cash_amount,
+                s.upi_amount,
+                s.card_amount,
+                s.booking_amount,
+                s.total_amount,
+                s.total_customers,
+                s.product_description,
+                s.notes,
+                u.full_name AS staff_name,
+                s.created_at
+            FROM sales s
+            JOIN stores st ON s.store_id = st.store_id
+            JOIN users u ON s.user_id = u.user_id
+            WHERE s.sale_date = ?
+        `;
+
+        const params = [date];
+
+        // Restrict staff to their assigned store
+        if (user.user_type === 'staff' && user.assigned_store !== 'all') {
+            const stores = await db.query(
+                'SELECT store_id FROM stores WHERE store_type = ?',
+                [user.assigned_store]
+            );
+
+            if (stores.length === 0) {
+                return res.json({
+                    success: true,
+                    date,
+                    data: []
+                });
+            }
+
+            const storeIds = stores.map(s => s.store_id);
+            const placeholders = storeIds.map(() => '?').join(',');
+
+            query += ` AND s.store_id IN (${placeholders})`;
+            params.push(...storeIds);
+        }
+
+        query += ' ORDER BY s.sale_time ASC';
+
+        const rows = await db.query(query, params);
+
+        res.json({
+            success: true,
+            date,
+            count: rows.length,
+            data: rows
+        });
+
+    } catch (error) {
+        console.error('Get daily sales error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching daily sales'
+        });
+    }
+});
 
 router.get('/monthly', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
