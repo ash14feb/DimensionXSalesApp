@@ -340,10 +340,10 @@ router.put('/users/:id', authMiddleware, authorize('admin'), async (req, res) =>
                 message: 'No fields to update'
             });
         }
-        const hashedPassword = '';
+
         if (password !== undefined) {
             const salt = await bcrypt.genSalt(10);
-            hashedPassword = await bcrypt.hash(password, salt);
+            const hashedPassword = await bcrypt.hash(password, salt);
             updates.push('password_hash = ?');
             values.push(hashedPassword);
         }
