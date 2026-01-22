@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const db = require('../utils/database');
 const { authMiddleware, authorize } = require('../middleware/auth');
@@ -19,7 +19,10 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
             booking_amount = 0,
             product_description = null,
             total_customers = 1,
-            notes = null
+            notes = null,
+            sale_date = null,
+            sale_time = null,
+            sale_datetime = null
         } = req.body;
 
         const user_id = req.user.user_id;
@@ -37,9 +40,9 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
             parseFloat(card_amount) + parseFloat(booking_amount);
 
         // Get current date and time
-        const sale_date = new Date().toISOString().split('T')[0];
-        const sale_time = new Date().toTimeString().split(' ')[0];
-        const sale_datetime = new Date();
+        //const sale_date = new Date().toISOString().split('T')[0];
+        //const sale_time = new Date().toTimeString().split(' ')[0];
+        //const sale_datetime = new Date();
 
         // Insert sale
         const result = await db.query(
@@ -85,6 +88,81 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error recording sale'
+        });
+    }
+});
+
+
+router.get('/monthly', authorize('staff', 'manager', 'admin'), async (req, res) => {
+    try {
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({
+                success: false,
+                message: 'date is required (YYYY-MM-DD)'
+            });
+        }
+
+        const query = `
+        WITH RECURSIVE calendar AS (
+            SELECT DATE_FORMAT(?, '%Y-%m-01') AS sale_date
+            UNION ALL
+            SELECT DATE_ADD(sale_date, INTERVAL 1 DAY)
+            FROM calendar
+            WHERE sale_date < LAST_DAY(?)
+        )
+        SELECT 
+            c.sale_date,
+
+            /* ARCADE (1) */
+            COALESCE(SUM(CASE WHEN s.store_id = 1 THEN s.cash_amount END), 0) AS arcade_cash,
+            COALESCE(SUM(CASE WHEN s.store_id = 1 THEN s.upi_amount END), 0) AS arcade_upi,
+            COALESCE(SUM(CASE WHEN s.store_id = 1 THEN s.card_amount END), 0) AS arcade_card,
+            COALESCE(SUM(CASE WHEN s.store_id = 1 THEN s.total_amount END), 0) AS arcade_total_sales,
+            COALESCE(SUM(CASE WHEN s.store_id = 1 THEN s.total_customers END), 0) AS arcade_customers,
+
+            /* DREAMCUBE (2) */
+            COALESCE(SUM(CASE WHEN s.store_id = 2 THEN s.cash_amount END), 0) AS dreamcube_cash,
+            COALESCE(SUM(CASE WHEN s.store_id = 2 THEN s.upi_amount END), 0) AS dreamcube_upi,
+            COALESCE(SUM(CASE WHEN s.store_id = 2 THEN s.card_amount END), 0) AS dreamcube_card,
+            COALESCE(SUM(CASE WHEN s.store_id = 2 THEN s.total_amount END), 0) AS dreamcube_total_sales,
+            COALESCE(SUM(CASE WHEN s.store_id = 2 THEN s.total_customers END), 0) AS dreamcube_customers,
+
+            /* TOYS (4) */
+            COALESCE(SUM(CASE WHEN s.store_id = 4 THEN s.cash_amount END), 0) AS toys_cash,
+            COALESCE(SUM(CASE WHEN s.store_id = 4 THEN s.upi_amount END), 0) AS toys_upi,
+            COALESCE(SUM(CASE WHEN s.store_id = 4 THEN s.card_amount END), 0) AS toys_card,
+            COALESCE(SUM(CASE WHEN s.store_id = 4 THEN s.total_amount END), 0) AS toys_total_sales,
+
+            /* BOOKING (3) */
+            COALESCE(SUM(CASE WHEN s.store_id = 3 THEN s.booking_amount END), 0) AS booking_total_amount,
+
+            /* FINAL TOTALS */
+            COALESCE(SUM(s.cash_amount), 0) AS total_cash,
+            COALESCE(SUM(s.upi_amount + s.card_amount), 0) AS total_upi_card,
+            COALESCE(SUM(s.total_amount + s.booking_amount), 0) AS grand_total_sales
+
+        FROM calendar c
+        LEFT JOIN sales s 
+            ON s.sale_date = c.sale_date
+        GROUP BY c.sale_date
+        ORDER BY c.sale_date;
+        `;
+
+        const rows = await db.query(query, [date, date]);
+
+        res.json({
+            success: true,
+            month: date.substring(0, 7),
+            days: rows   // ← THIS WILL NOW BE AN ARRAY (31 days)
+        });
+
+    } catch (error) {
+        console.error('Monthly sales error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching monthly sales'
         });
     }
 });
