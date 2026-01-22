@@ -1,4 +1,12 @@
-﻿const express = require('express');
+﻿
+
+
+
+
+
+
+
+const express = require('express');
 const router = express.Router();
 const db = require('../utils/database');
 const { authMiddleware, authorize } = require('../middleware/auth');
@@ -44,7 +52,7 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
         //const sale_time = new Date().toTimeString().split(' ')[0];
         //const sale_datetime = new Date();
 
-        // Insert sale
+        // Insert sale 
         const result = await db.query(
             `INSERT INTO sales (
         store_id, user_id, sale_date, sale_time, sale_datetime,
@@ -172,107 +180,82 @@ router.get('/monthly', authorize('staff', 'manager', 'admin'), async (req, res) 
 // @access  Private (Staff, Manager, Admin)
 router.get('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
-        const {
-            store_id,
-            start_date,
-            end_date,
-            page = 1,
-            limit = 50
-        } = req.query;
-
+        const { store_id, start_date, end_date } = req.query;
         const user = req.user;
-        const offset = (page - 1) * limit;
 
-        // Base query
         let query = `
-      SELECT 
-        s.sale_id,
-        s.store_id,
-        st.store_name,
-        st.store_type,
-        s.sale_date,
-        s.sale_time,
-        s.cash_amount,
-        s.upi_amount,
-        s.card_amount,
-        s.booking_amount,
-        s.product_description,
-        s.total_customers,
-        s.total_amount,
-        s.notes,
-        u.full_name as staff_name,
-        s.created_at
-      FROM sales s
-      JOIN stores st ON s.store_id = st.store_id
-      JOIN users u ON s.user_id = u.user_id
-      WHERE 1=1
-    `;
+        SELECT 
+            s.sale_id,
+            s.store_id,
+            st.store_name,
+            st.store_type,
+            s.sale_date,
+            s.sale_time,
+            s.cash_amount,
+            s.upi_amount,
+            s.card_amount,
+            s.booking_amount,
+            s.product_description,
+            s.total_customers,
+            s.total_amount,
+            s.notes,
+            u.full_name AS staff_name,
+            s.created_at
+        FROM sales s
+        JOIN stores st ON s.store_id = st.store_id
+        JOIN users u ON s.user_id = u.user_id
+        WHERE 1=1
+        `;
 
         const params = [];
 
-        // Apply filters
+        // 🔹 Filter by store_id (query param)
         if (store_id) {
             query += ' AND s.store_id = ?';
-            params.push(store_id);
+            params.push(Number(store_id));
         }
 
-        // If user is staff, only show their store's sales
+        // 🔹 Staff restriction (important)
         if (user.user_type === 'staff' && user.assigned_store !== 'all') {
-            const [stores] = await db.query(
+            const stores = await db.query(
                 'SELECT store_id FROM stores WHERE store_type = ?',
                 [user.assigned_store]
             );
 
             if (stores.length > 0) {
-                query += ' AND s.store_id IN (?)';
-                params.push(stores.map(s => s.store_id));
+                const storeIds = stores.map(s => s.store_id);
+                query += ` AND s.store_id IN (${storeIds.map(() => '?').join(',')})`;
+                params.push(...storeIds);
+            } else {
+                // Staff has no stores → return empty result safely
+                return res.json({ success: true, data: [] });
             }
         }
 
-        // Date filters
+        // 🔹 Date filters
         if (start_date) {
             query += ' AND s.sale_date >= ?';
             params.push(start_date);
         }
+
         if (end_date) {
             query += ' AND s.sale_date <= ?';
             params.push(end_date);
         }
 
-        // Order and pagination
-        query += ' ORDER BY s.sale_date DESC, s.sale_time DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        // 🔹 Ordering
+        query += ' ORDER BY s.sale_date DESC, s.sale_time DESC';
 
-        // Execute query
+        // 🧪 Optional debug
+        // console.log(query);
+        // console.log(params);
+
         const sales = await db.query(query, params);
-
-        // Get total count for pagination
-        let countQuery = 'SELECT COUNT(*) as total FROM sales s WHERE 1=1';
-        const countParams = params.slice(0, -2); // Remove limit and offset
-
-        if (user.user_type === 'staff' && user.assigned_store !== 'all') {
-            const [stores] = await db.query(
-                'SELECT store_id FROM stores WHERE store_type = ?',
-                [user.assigned_store]
-            );
-            if (stores.length > 0) {
-                countQuery += ' AND s.store_id IN (?)';
-                countParams.push(stores.map(s => s.store_id));
-            }
-        }
-
-        const [countResult] = await db.query(countQuery, countParams);
-        const total = countResult[0]?.total || 0;
 
         res.json({
             success: true,
-            data: sales,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / limit)
-            }
+            count: sales.length,
+            data: sales
         });
     } catch (error) {
         console.error('Get sales error:', error);
@@ -283,6 +266,7 @@ router.get('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
     }
 });
 
+
 // @route   GET /api/sales/today
 // @desc    Get today's sales summary
 // @access  Private (Staff, Manager, Admin)
@@ -290,7 +274,7 @@ router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) =>
     try {
         const user = req.user;
         const today = new Date().toISOString().split('T')[0];
-
+        console.log(today);
         let query = `
       SELECT 
         st.store_id,
@@ -359,7 +343,7 @@ router.get('/:id', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [sales] = await db.query(
+        const sales = await db.query(
             `SELECT 
         s.*,
         st.store_name,
@@ -391,6 +375,13 @@ router.get('/:id', authorize('staff', 'manager', 'admin'), async (req, res) => {
         });
     }
 });
+
+
+// @route   GET /api/sales/monthly
+// @desc    Get monthly day-wise consolidated sales
+// @access  Private
+
+
 
 // @route   PUT /api/sales/:id
 // @desc    Update a sale
