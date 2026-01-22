@@ -160,7 +160,7 @@ router.get('/day', authorize('staff', 'manager', 'admin'), async (req, res) => {
         let query = `
             SELECT
                 s.sale_id,
-                s.sale_date,
+                DATE(s.sale_date) AS sale_date,
                 s.sale_time,
                 s.store_id,
                 st.store_name,
@@ -176,14 +176,14 @@ router.get('/day', authorize('staff', 'manager', 'admin'), async (req, res) => {
                 u.full_name AS staff_name,
                 s.created_at
             FROM sales s
-            JOIN stores st ON s.store_id = st.store_id
-            JOIN users u ON s.user_id = u.user_id
-            WHERE s.sale_date = ?
+            INNER JOIN stores st ON s.store_id = st.store_id
+            INNER JOIN users u ON s.user_id = u.user_id
+            WHERE DATE(s.sale_date) = ?
         `;
 
         const params = [date];
 
-        // Restrict staff to their assigned store
+        // 🔐 Restrict staff to their store only
         if (user.user_type === 'staff' && user.assigned_store !== 'all') {
             const stores = await db.query(
                 'SELECT store_id FROM stores WHERE store_type = ?',
@@ -194,18 +194,17 @@ router.get('/day', authorize('staff', 'manager', 'admin'), async (req, res) => {
                 return res.json({
                     success: true,
                     date,
+                    count: 0,
                     data: []
                 });
             }
 
             const storeIds = stores.map(s => s.store_id);
-            const placeholders = storeIds.map(() => '?').join(',');
-
-            query += ` AND s.store_id IN (${placeholders})`;
+            query += ` AND s.store_id IN (${storeIds.map(() => '?').join(',')})`;
             params.push(...storeIds);
         }
 
-        query += ' ORDER BY s.sale_time ASC';
+        query += ' ORDER BY st.store_id ASC, s.sale_time ASC';
 
         const rows = await db.query(query, params);
 
