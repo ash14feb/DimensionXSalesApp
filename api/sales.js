@@ -64,12 +64,12 @@ router.post('/', authorize('staff', 'manager', 'admin'), async (req, res) => {
 
             await db.query(
                 `UPDATE sales SET
-                    cash_amount = cash_amount + ?,
-                    upi_amount = upi_amount + ?,
-                    card_amount = card_amount + ?,
-                    booking_amount = booking_amount + ?,
-                    total_customers = total_customers + ?,
-                    total_amount = total_amount + ?,
+                    cash_amount =  ?,
+                    upi_amount =  ?,
+                    card_amount =  ?,
+                    booking_amount =  ?,
+                    total_customers =  ?,
+                    total_amount =  ?,
                     notes = COALESCE(?, notes)
                  WHERE sale_id = ?`,
                 [
