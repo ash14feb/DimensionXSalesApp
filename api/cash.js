@@ -98,7 +98,7 @@ router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) =
 
         // Get today's cash sales
         const cashSales = await db.query(
-            'SELECT COALESCE(SUM(cash_amount), 0) as total_cash_sales FROM sales WHERE store_id = ? AND sale_date = ?',
+            'SELECT COALESCE(SUM(cash_amount), 0) as total_cash_sales FROM sales WHERE store_id = IN (1,2,3,4) AND sale_date = ?',
             [store_id, today]
         );
 
