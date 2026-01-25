@@ -11,12 +11,12 @@ router.use(authMiddleware);
 // @access  Private (Staff, Manager, Admin)
 router.post('/clock-in', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
-        const { store_id, latitude, longitude } = req.body;
+        const { store_id, latitude, longitude, login_time } = req.body;
         const user_id = req.user.user_id;
 
         // Check if user is already clocked in today
-        const today = new Date().toISOString().split('T')[0];
-        const [existingAttendance] = await db.query(
+        const today = login_time.split('T')[0];
+        const existingAttendance = await db.query(
             'SELECT * FROM staff_attendance WHERE user_id = ? AND attendance_date = ? AND logout_time IS NULL',
             [user_id, today]
         );
@@ -31,9 +31,9 @@ router.post('/clock-in', authorize('staff', 'manager', 'admin'), async (req, res
         // Clock in
         const result = await db.query(
             `INSERT INTO staff_attendance (
-        user_id, store_id, login_latitude, login_longitude
-      ) VALUES (?, ?, ?, ?)`,
-            [user_id, store_id, latitude, longitude]
+        user_id, store_id, login_latitude, login_longitude,login_time
+      ) VALUES (?, ?, ?, ?,?)`,
+            [user_id, store_id, latitude, longitude, login_time]
         );
 
         // Get store info
@@ -47,7 +47,7 @@ router.post('/clock-in', authorize('staff', 'manager', 'admin'), async (req, res
             message: 'Clocked in successfully',
             attendance_id: result.insertId,
             store_name: stores[0]?.store_name,
-            login_time: new Date()
+            login_time: login_time
         });
     } catch (error) {
         console.error('Clock in error:', error);
@@ -63,12 +63,12 @@ router.post('/clock-in', authorize('staff', 'manager', 'admin'), async (req, res
 // @access  Private (Staff, Manager, Admin)
 router.post('/clock-out', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
-        const { latitude, longitude } = req.body;
+        const { latitude, longitude, date, logout_time } = req.body;
         const user_id = req.user.user_id;
-        const today = new Date().toISOString().split('T')[0];
+        const today = date;
 
         // Find today's active attendance
-        const [attendance] = await db.query(
+        const attendance = await db.query(
             'SELECT * FROM staff_attendance WHERE user_id = ? AND attendance_date = ? AND logout_time IS NULL',
             [user_id, today]
         );
@@ -82,20 +82,19 @@ router.post('/clock-out', authorize('staff', 'manager', 'admin'), async (req, re
 
         const attendanceRecord = attendance[0];
         const loginTime = new Date(attendanceRecord.login_time);
-        const logoutTime = new Date();
+        const logoutTime = logout_time;
 
         // Calculate work duration in minutes
         const workDurationMinutes = Math.round((logoutTime - loginTime) / (1000 * 60));
 
-        // Update attendance with clock out
+        // Update attendance with clock out        work_duration_minutes = ?
         await db.query(
             `UPDATE staff_attendance SET
         logout_time = ?,
         logout_latitude = ?,
-        logout_longitude = ?,
-        work_duration_minutes = ?
-      WHERE attendance_id = ?`,
-            [logoutTime, latitude, longitude, workDurationMinutes, attendanceRecord.attendance_id]
+        logout_longitude = ?
+        WHERE attendance_id = ?`,
+            [logoutTime, latitude, longitude, attendanceRecord.attendance_id]
         );
 
         res.json({
@@ -115,29 +114,60 @@ router.post('/clock-out', authorize('staff', 'manager', 'admin'), async (req, re
     }
 });
 
-// @route   GET /api/attendance/today
-// @desc    Get today's attendance status
+// @route   GET /api/attendance/status
+// @desc    Get attendance status for a specific date (defaults to today)
 // @access  Private (Staff, Manager, Admin)
-router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) => {
+router.get('/status', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
         const user_id = req.user.user_id;
-        const today = new Date().toISOString().split('T')[0];
 
-        const [attendance] = await db.query(
-            `SELECT 
+        // Get date from query parameter, default to today
+        let date = req.query.date;
+
+        if (!date) {
+            // Default to today if no date provided
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date'
+            });
+        } else {
+            // Validate date format (YYYY-MM-DD)
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(date)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid date format. Please use YYYY-MM-DD'
+                });
+            }
+
+            // Additional validation to ensure it's a valid date
+            const parsedDate = new Date(date);
+            if (isNaN(parsedDate.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid date provided'
+                });
+            }
+        }
+
+        const attendance = await db.query(
+            `SELECT
         a.*,
         s.store_name,
-        u.full_name
+        u.full_name,
+        DATE_FORMAT(a.login_time, '%Y-%m-%d %H:%i:%s') as login_time_local,
+        DATE_FORMAT(a.logout_time, '%Y-%m-%d %H:%i:%s') as logout_time_local,
+        DATE_FORMAT(a.attendance_date, '%Y-%m-%d') as attendance_date_local
       FROM staff_attendance a
       JOIN stores s ON a.store_id = s.store_id
       JOIN users u ON a.user_id = u.user_id
       WHERE a.user_id = ? AND a.attendance_date = ?`,
-            [user_id, today]
+            [user_id, date]
         );
 
         res.json({
             success: true,
-            date: today,
+            date: date,
             attendance: attendance.length > 0 ? attendance[0] : null,
             status: attendance.length > 0
                 ? (attendance[0].logout_time ? 'clocked_out' : 'clocked_in')
@@ -151,7 +181,6 @@ router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) =>
         });
     }
 });
-
 // @route   GET /api/attendance
 // @desc    Get attendance records with filters
 // @access  Private (Manager, Admin)
@@ -161,19 +190,18 @@ router.get('/', authorize('manager', 'admin'), async (req, res) => {
             user_id,
             store_id,
             start_date,
-            end_date,
-            page = 1,
-            limit = 50
+            end_date
         } = req.query;
-
-        const offset = (page - 1) * limit;
 
         let query = `
       SELECT 
         a.*,
         s.store_name,
         u.full_name,
-        u.username
+        u.username,
+        DATE_FORMAT(a.login_time, '%Y-%m-%d %H:%i:%s') as login_time_formatted,
+        DATE_FORMAT(a.logout_time, '%Y-%m-%d %H:%i:%s') as logout_time_formatted,
+        DATE_FORMAT(a.attendance_date, '%Y-%m-%d') as attendance_date_formatted
       FROM staff_attendance a
       JOIN stores s ON a.store_id = s.store_id
       JOIN users u ON a.user_id = u.user_id
@@ -202,32 +230,32 @@ router.get('/', authorize('manager', 'admin'), async (req, res) => {
             params.push(end_date);
         }
 
-        query += ' ORDER BY a.attendance_date DESC, a.login_time DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        query += ' ORDER BY a.attendance_date DESC, a.login_time DESC';
 
         const attendance = await db.query(query, params);
 
-        // Get total count
-        let countQuery = 'SELECT COUNT(*) as total FROM staff_attendance a WHERE 1=1';
-        const countParams = params.slice(0, -2);
-
-        if (user_id) countQuery += ' AND a.user_id = ?';
-        if (store_id) countQuery += ' AND a.store_id = ?';
-        if (start_date) countQuery += ' AND a.attendance_date >= ?';
-        if (end_date) countQuery += ' AND a.attendance_date <= ?';
-
-        const [countResult] = await db.query(countQuery, countParams);
-        const total = countResult[0]?.total || 0;
+        // Format the response data
+        const formattedData = attendance.map(record => ({
+            attendance_id: record.attendance_id,
+            user_id: record.user_id,
+            store_id: record.store_id,
+            login_time: record.login_time_formatted || record.login_time,
+            logout_time: record.logout_time_formatted || record.logout_time,
+            login_latitude: record.login_latitude,
+            login_longitude: record.login_longitude,
+            logout_latitude: record.logout_latitude,
+            logout_longitude: record.logout_longitude,
+            work_duration_minutes: record.work_duration_minutes,
+            attendance_date: record.attendance_date_formatted || record.attendance_date,
+            store_name: record.store_name,
+            full_name: record.full_name,
+            username: record.username
+        }));
 
         res.json({
             success: true,
-            data: attendance,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / limit)
-            }
+            data: formattedData,
+            count: formattedData.length
         });
     } catch (error) {
         console.error('Get attendance records error:', error);
@@ -237,5 +265,4 @@ router.get('/', authorize('manager', 'admin'), async (req, res) => {
         });
     }
 });
-
 module.exports = router;
