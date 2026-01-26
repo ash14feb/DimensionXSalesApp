@@ -175,8 +175,8 @@ router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) =>
     `;
 
         const params = [today];
-
-        if (user.user_type === 'staff' && user.assigned_store !== 'all') {
+ //&& user.assigned_store !== 'all'
+        if (user.user_type === 'staff') {
             const stores = await db.query(
                 'SELECT store_id FROM stores WHERE store_type = ?',
                 [user.assigned_store]
@@ -184,7 +184,7 @@ router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) =>
 
             if (stores.length > 0) {
                 query += ' AND cr.store_id IN (?)';
-                params.push(stores.map(s => s.store_id));
+                params.push(stores.map(s => 1));
             }
         }
 
