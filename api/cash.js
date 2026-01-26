@@ -148,6 +148,9 @@ router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) =
 // @route   GET /api/cash/today
 // @desc    Get today's cash register status
 // @access  Private (Staff, Manager, Admin)
+// @route   GET /api/cash/today
+// @desc    Get today's cash register status
+// @access  Private (Staff, Manager, Admin)
 router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
         const user = req.user;
