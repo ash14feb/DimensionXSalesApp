@@ -12,7 +12,7 @@ router.use(authMiddleware);
 // @access  Private (Staff, Manager, Admin)
 router.post('/open', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
-        const { store_id, opening_cash, notes, date } = req.body;
+        const { store_id, opening_cash, date } = req.body;
         const user_id = req.user.user_id;
         const today = date;
 
