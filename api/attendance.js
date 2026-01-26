@@ -184,7 +184,7 @@ router.get('/status', authorize('staff', 'manager', 'admin'), async (req, res) =
 // @route   GET /api/attendance
 // @desc    Get attendance records with filters
 // @access  Private (Manager, Admin)
-router.get('/', authorize('manager', 'admin'), async (req, res) => {
+router.get('/', authorize('manager', 'admin','staff'), async (req, res) => {
     try {
         const {
             user_id,
@@ -269,7 +269,7 @@ router.get('/', authorize('manager', 'admin'), async (req, res) => {
 // @route   GET /api/attendance/summary
 // @desc    Get attendance summary in matrix format for reporting
 // @access  Private (Manager, Admin)
-router.get('/summary', authorize('manager', 'admin'), async (req, res) => {
+router.get('/summary', authorize('manager', 'admin','staff'), async (req, res) => {
     try {
         const { store_id, start_date, end_date, user_id } = req.query;
 
