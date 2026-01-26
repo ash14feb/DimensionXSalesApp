@@ -175,18 +175,18 @@ router.get('/today', authorize('staff', 'manager', 'admin'), async (req, res) =>
     `;
 
         const params = [today];
- //&& user.assigned_store !== 'all'
-        if (user.user_type === 'staff') {
-            const stores = await db.query(
-                'SELECT store_id FROM stores WHERE store_type = ?',
-                [user.assigned_store]
-            );
+ ////&& user.assigned_store !== 'all'
+ //       if (user.user_type === 'staff') {
+ //           const stores = await db.query(
+ //               'SELECT store_id FROM stores WHERE store_type = ?',
+ //               [user.assigned_store]
+ //           );
 
-            if (stores.length > 0) {
-                query += ' AND cr.store_id IN (?)';
-                params.push(stores.map(s => 1));
-            }
-        }
+ //           if (stores.length > 0) {
+ //               query += ' AND cr.store_id IN (?)';
+ //               params.push(stores.map(s => 1));
+ //           }
+ //       }
 
         query += ' ORDER BY s.store_name';
         console.log("Query:", query, "Params:", params);
