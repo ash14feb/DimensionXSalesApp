@@ -15,7 +15,7 @@ router.post('/open', authorize('staff', 'manager', 'admin'), async (req, res) =>
         const { store_id, opening_cash, date } = req.body;
         const user_id = req.user.user_id;
         const today = date;
-
+        const notes = null;
         // Check if register is already opened today
         const existingRegister = await db.query(
             'SELECT * FROM cash_register WHERE store_id = ? AND register_date = ?',
