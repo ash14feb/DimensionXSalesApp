@@ -359,27 +359,27 @@ router.get('/monthly', authorize('staff', 'manager', 'admin'), async (req, res) 
         }
 
         // Add user permission filter
-        if (user.user_type === 'staff' && user.assigned_store !== 'all') {
-            const stores = await db.query(
-                'SELECT store_id FROM stores WHERE store_type = ?',
-                [user.assigned_store]
-            );
+        //if (user.user_type === 'staff' && user.assigned_store !== 'all') {
+        //    const stores = await db.query(
+        //        'SELECT store_id FROM stores WHERE store_type = ?',
+        //        [user.assigned_store]
+        //    );
 
-            if (stores.length > 0) {
-                const storeIds = stores.map(s => s.store_id);
-                if (store_id && !storeIds.includes(parseInt(store_id))) {
-                    return res.status(403).json({
-                        success: false,
-                        message: 'You are not authorized to view this store'
-                    });
-                }
+        //    if (stores.length > 0) {
+        //        const storeIds = stores.map(s => s.store_id);
+        //        if (store_id && !storeIds.includes(parseInt(store_id))) {
+        //            return res.status(403).json({
+        //                success: false,
+        //                message: 'You are not authorized to view this store'
+        //            });
+        //        }
 
-                if (!store_id) {
-                    query += ' AND cr.store_id IN (?)';
-                    params.push(storeIds);
-                }
-            }
-        }
+        //        if (!store_id) {
+        //            query += ' AND cr.store_id IN (?)';
+        //            params.push(storeIds);
+        //        }
+        //    }
+        //}
 
         query += `
             GROUP BY cr.register_id, s.store_name, s.store_type, u.full_name
