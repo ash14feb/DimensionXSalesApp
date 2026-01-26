@@ -21,14 +21,14 @@ router.post('/open', authorize('staff', 'manager', 'admin'), async (req, res) =>
             'SELECT * FROM cash_register WHERE store_id = ? AND register_date = ?',
             [store_id, today]
         );
-
+        //,notes = CONCAT_WS(' | ', notes, ?)
         if (existingRegister.length > 0) {
             await db.query(
                 `UPDATE cash_register SET
-        opening_cash = ?,
-        notes = CONCAT_WS(' | ', notes, ?)
+        opening_cash = ?
+        
       WHERE store_id = ? AND register_date = ?`,
-                [opening_cash, notes, store_id, today]
+                [opening_cash, store_id, today]
             );
             return res.status(400).json({
                 success: false,
@@ -107,16 +107,16 @@ router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) =
         const calculated_cash = opening_cash + total_cash_sales;
         const cash_difference = parseFloat(closing_cash) - calculated_cash;
 
-        // Close cash register
+        // Close cash register ,notes = CONCAT_WS(' | ', notes, ?)
         await db.query(
             `UPDATE cash_register SET
         closing_cash = ?,
         calculated_cash = ?,
         cash_difference = ?,
-        closing_time = NOW(),
-        notes = CONCAT_WS(' | ', notes, ?)
+        closing_time = NOW()
+       
       WHERE store_id = ? AND register_date = ?`,
-            [closing_cash, calculated_cash, cash_difference, notes, store_id, today]
+            [closing_cash, calculated_cash, cash_difference, store_id, today]
         );
 
         // Get store info
