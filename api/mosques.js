@@ -44,7 +44,7 @@ router.post('/import', authorize('admin'), async (req, res) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': process.env.GOOGLE_PLACES_API_KEY,
+                    'X-Goog-Api-Key': 'AIzaSyDqgCn1sprsE7M0_lCU9hlwWN92QQBDohk',
                     'X-Goog-FieldMask':
                         'places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,nextPageToken'
                 },
