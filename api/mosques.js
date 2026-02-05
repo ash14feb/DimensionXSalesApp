@@ -1,5 +1,4 @@
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
 const db = require('../utils/database');
 const { authMiddleware, authorize } = require('../middleware/auth');
@@ -39,18 +38,22 @@ router.post('/import', authorize('admin'), async (req, res) => {
             requestBody.pageToken = pageToken;
         }
 
-        const response = await axios.post(
+        const response = await fetch(
             'https://places.googleapis.com/v1/places:searchText',
-            requestBody,
             {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': AIzaSyDqgCn1sprsE7M0_lCU9hlwWN92QQBDohk,
+                    'X-Goog-Api-Key': process.env.GOOGLE_PLACES_API_KEY,
                     'X-Goog-FieldMask':
                         'places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,nextPageToken'
-                }
+                },
+                body: JSON.stringify(requestBody)
             }
         );
+
+        const data = await response.json();
+
 
         const places = response.data.places || [];
         const nextPageToken = response.data.nextPageToken || null;
