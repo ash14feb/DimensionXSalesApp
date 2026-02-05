@@ -55,8 +55,8 @@ router.post('/import', authorize('admin'), async (req, res) => {
         const data = await response.json();
 
 
-        const places = response.data.places || [];
-        const nextPageToken = response.data.nextPageToken || null;
+        const places = data.places || [];
+        const nextPageToken = data.nextPageToken || null;
 
         let inserted = 0;
 
