@@ -54,6 +54,8 @@ router.post('/import', authorize('admin'), async (req, res) => {
 
         const data = await response.json();
 
+        console.log('Google places count:', data.places?.length);
+
 
         const places = data.places || [];
         const nextPageToken = data.nextPageToken || null;
