@@ -11,6 +11,7 @@ const cashRoutes = require('./api/cash');
 const expensesRoutes = require('./api/expenses');
 const problemsRoutes = require('./api/problems');
 const reportsRoutes = require('./api/reports');
+const mosquesRoutes = require('./api/mosques');
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/cash', cashRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/problems', problemsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/mosques', mosquesRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

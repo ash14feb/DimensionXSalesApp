@@ -9,7 +9,7 @@ router.use(authMiddleware);
 // @route   POST /api/mosques/import
 // @desc    Import mosques from Google Places API
 // @access  Private (Admin only) 
-router.post('/', authorize('admin'), async (req, res) => {
+router.post('/import', authorize('admin'), async (req, res) => {
     try {
         const {
             latitude,
