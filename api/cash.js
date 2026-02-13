@@ -69,7 +69,9 @@ router.post('/open', authorize('staff', 'manager', 'admin'), async (req, res) =>
 
 router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) => {
     try {
-        const { store_id, closing_cash, notes, date, cash_taken = 0 } = req.body;
+
+        const { store_id, closing_cash, date, cash_taken = 0 } = req.body;
+        const notes = req.body.notes ?? null;  // ✅ FIX
         const today = date;
 
         const register = await db.query(
@@ -100,7 +102,6 @@ router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) =
         const opening_cash = parseFloat(register[0].opening_cash);
         const cashTaken = parseFloat(cash_taken) || 0;
 
-        // 🔥 Updated Formula
         const calculated_cash = opening_cash + total_cash_sales - cashTaken;
         const cash_difference = parseFloat(closing_cash) - calculated_cash;
 
@@ -113,30 +114,28 @@ router.post('/close', authorize('staff', 'manager', 'admin'), async (req, res) =
                 closing_time = NOW(),
                 notes = ?
             WHERE store_id = ? AND register_date = ?`,
-            [closing_cash, cashTaken, calculated_cash, cash_difference, notes, store_id, today]
-        );
-
-        const [stores] = await db.query(
-            'SELECT store_name FROM stores WHERE store_id = ?',
-            [store_id]
+            [
+                closing_cash,
+                cashTaken,
+                calculated_cash,
+                cash_difference,
+                notes,      // now always null or string
+                store_id,
+                today
+            ]
         );
 
         res.json({
             success: true,
-            message: 'Cash register closed successfully',
-            store_name: stores[0]?.store_name,
-            date: today,
-            opening_cash,
-            total_cash_sales,
-            cash_taken: cashTaken,
-            calculated_cash,
-            closing_cash: parseFloat(closing_cash),
-            cash_difference
+            message: 'Cash register closed successfully'
         });
 
     } catch (error) {
         console.error('Close cash register error:', error);
-        res.status(500).json({ success: false, message: 'Error closing cash register' });
+        res.status(500).json({
+            success: false,
+            message: 'Error closing cash register'
+        });
     }
 });
 
