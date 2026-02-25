@@ -21,7 +21,7 @@ router.post('/date-range', async (req, res) => {
             ORDER BY created_at DESC
         `;
 
-        const [rows] = await db.query(query, [from_date, to_date]);
+        const rows = await db.query(query, [from_date, to_date]);
         console.log("Rows length:", rows.length);
         console.log("Rows:", rows);
         res.json({
