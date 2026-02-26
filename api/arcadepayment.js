@@ -163,4 +163,206 @@ router.post('/time-analysis', async (req, res) => {
         });
     }
 });
+
+router.post('/refund-report', async (req, res) => {
+    try {
+        const { from_date, to_date } = req.body;
+
+        if (!from_date || !to_date) {
+            return res.status(400).json({
+                success: false,
+                message: "from_date and to_date are required"
+            });
+        }
+
+        const fromDateTime = from_date + " 00:00:00";
+        const toDateTime = to_date + " 23:59:59";
+
+        const summaryQuery = `
+            SELECT 
+                COUNT(*) as total_refunds,
+                IFNULL(SUM(amount),0) as total_refund_amount
+            FROM es_billing
+            WHERE is_refund = 'YES'
+              AND refund_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+        `;
+
+        const detailsQuery = `
+            SELECT 
+                id,
+                name,
+                log_game,
+                amount,
+                refund_at,
+                refund_by
+            FROM es_billing
+            WHERE is_refund = 'YES'
+              AND refund_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+            ORDER BY refund_at DESC
+        `;
+
+        const [summary] = await db.query(summaryQuery, [fromDateTime, toDateTime]);
+        const [details] = await db.query(detailsQuery, [fromDateTime, toDateTime]);
+
+        res.json({
+            success: true,
+            summary: summary[0],
+            data: details
+        });
+
+    } catch (error) {
+        console.error("Refund report error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+router.post('/game-wise-report', async (req, res) => {
+    try {
+        const { from_date, to_date } = req.body;
+
+        if (!from_date || !to_date) {
+            return res.status(400).json({
+                success: false,
+                message: "from_date and to_date are required"
+            });
+        }
+
+        const fromDateTime = from_date + " 00:00:00";
+        const toDateTime = to_date + " 23:59:59";
+
+        const query = `
+            SELECT 
+                log_game,
+                COUNT(*) as total_plays,
+                IFNULL(SUM(amount),0) as total_revenue,
+                IFNULL(SUM(token_earn),0) as total_tokens
+            FROM es_billing
+            WHERE created_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+              AND is_refund = 'NO'
+            GROUP BY log_game
+            ORDER BY total_revenue DESC
+        `;
+
+        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+
+        res.json({
+            success: true,
+            count: rows.length,
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Game-wise report error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+router.post('/top-games', async (req, res) => {
+    try {
+        const { from_date, to_date, limit = 5 } = req.body;
+
+        const fromDateTime = from_date + " 00:00:00";
+        const toDateTime = to_date + " 23:59:59";
+
+        const query = `
+            SELECT 
+                log_game,
+                COUNT(*) as plays
+            FROM es_billing
+            WHERE created_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+              AND is_refund = 'NO'  
+            GROUP BY log_game
+            ORDER BY plays DESC
+            LIMIT ?
+        `;
+
+        const [rows] = await db.query(query, [fromDateTime, toDateTime, Number(limit)]);
+
+        res.json({
+            success: true,
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Top games error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+router.post('/device-report', async (req, res) => {
+    try {
+        const { from_date, to_date } = req.body;
+
+        const fromDateTime = from_date + " 00:00:00";
+        const toDateTime = to_date + " 23:59:59";
+
+        const query = `
+            SELECT 
+                log_device_ip,
+                COUNT(*) as total_plays,
+                IFNULL(SUM(amount),0) as total_revenue
+            FROM es_billing
+            WHERE created_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+              AND is_refund = 'NO'
+            GROUP BY log_device_ip
+            ORDER BY total_revenue DESC
+        `;
+
+        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+
+        res.json({
+            success: true,
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Device report error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+
+router.post('/summary-report', async (req, res) => {
+    try {
+        const { from_date, to_date } = req.body;
+
+        if (!from_date || !to_date) {
+            return res.status(400).json({
+                success: false,
+                message: "from_date and to_date are required"
+            });
+        }
+
+        const fromDateTime = from_date + " 00:00:00";
+        const toDateTime = to_date + " 23:59:59";
+
+        const query = `
+            SELECT
+                COUNT(*) as total_plays,
+                IFNULL(SUM(amount),0) as total_revenue,
+                IFNULL(SUM(customer_main_amount_used),0) as main_amount_used,
+                IFNULL(SUM(customer_bonus_amount_used),0) as bonus_amount_used
+            FROM es_billing
+            WHERE created_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+              AND is_refund = 'NO'
+        `;
+
+        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+
+        res.json({
+            success: true,
+            data: rows[0]
+        });
+
+    } catch (error) {
+        console.error("Summary report error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
 module.exports = router;
