@@ -290,7 +290,7 @@ router.post('/top-games', async (req, res) => {
             LIMIT ${safeLimit}
         `;
 
-        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+        const rows = await db.query(query, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
