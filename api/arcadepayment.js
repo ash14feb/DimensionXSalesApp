@@ -203,8 +203,8 @@ router.post('/refund-report', async (req, res) => {
             ORDER BY refund_at DESC
         `;
 
-        const [summary] = await db.query(summaryQuery, [fromDateTime, toDateTime]);
-        const [details] = await db.query(detailsQuery, [fromDateTime, toDateTime]);
+        const summary = await db.query(summaryQuery, [fromDateTime, toDateTime]);
+        const details = await db.query(detailsQuery, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
@@ -246,7 +246,7 @@ router.post('/game-wise-report', async (req, res) => {
             ORDER BY total_revenue DESC
         `;
 
-        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+        const rows = await db.query(query, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
@@ -280,7 +280,7 @@ router.post('/top-games', async (req, res) => {
             LIMIT ?
         `;
 
-        const [rows] = await db.query(query, [fromDateTime, toDateTime, Number(limit)]);
+        const rows = await db.query(query, [fromDateTime, toDateTime, Number(limit)]);
 
         res.json({
             success: true,
@@ -313,7 +313,7 @@ router.post('/device-report', async (req, res) => {
             ORDER BY total_revenue DESC
         `;
 
-        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+        const rows = await db.query(query, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
@@ -353,7 +353,7 @@ router.post('/summary-report', async (req, res) => {
               AND is_refund = 'NO'
         `;
 
-        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
+        const rows = await db.query(query, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
