@@ -264,8 +264,18 @@ router.post('/top-games', async (req, res) => {
     try {
         const { from_date, to_date, limit = 5 } = req.body;
 
+        if (!from_date || !to_date) {
+            return res.status(400).json({
+                success: false,
+                message: "from_date and to_date are required"
+            });
+        }
+
         const fromDateTime = from_date + " 00:00:00";
         const toDateTime = to_date + " 23:59:59";
+
+        // ✅ Force limit to be safe integer
+        const safeLimit = parseInt(limit) || 5;
 
         const query = `
             SELECT 
@@ -274,13 +284,13 @@ router.post('/top-games', async (req, res) => {
             FROM es_billing
             WHERE created_at BETWEEN ? AND ?
               AND is_deleted = 'NO'
-              AND is_refund = 'NO'  
+              AND is_refund = 'NO'
             GROUP BY log_game
             ORDER BY plays DESC
-            LIMIT ?
+            LIMIT ${safeLimit}
         `;
 
-        const rows = await db.query(query, [fromDateTime, toDateTime, Number(limit)]);
+        const [rows] = await db.query(query, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
@@ -289,7 +299,10 @@ router.post('/top-games', async (req, res) => {
 
     } catch (error) {
         console.error("Top games error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
     }
 });
 
