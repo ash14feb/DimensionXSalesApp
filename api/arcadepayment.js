@@ -42,7 +42,6 @@ router.post('/date-range', async (req, res) => {
     }
 });
 
-
 router.post('/date-range-summary', async (req, res) => {
     try {
         const { from_date, to_date } = req.body;
@@ -61,10 +60,9 @@ router.post('/date-range-summary', async (req, res) => {
         const summaryQuery = `
             SELECT 
                 COUNT(*) as total_customers,
-                SUM(recharge_amount) as total_sales
+                IFNULL(SUM(recharge_amount),0) as total_sales
             FROM es_payment
-            WHERE created_at >= ?
-              AND created_at <= ?
+            WHERE created_at BETWEEN ? AND ?
               AND is_deleted = 'NO'
         `;
 
@@ -74,20 +72,34 @@ router.post('/date-range-summary', async (req, res) => {
                 recharge_amount,
                 COUNT(*) as customer_count
             FROM es_payment
-            WHERE created_at >= ?
-              AND created_at <= ?
+            WHERE created_at BETWEEN ? AND ?
               AND is_deleted = 'NO'
             GROUP BY recharge_amount
             ORDER BY recharge_amount ASC
         `;
 
-        const summary = await db.query(summaryQuery, [fromDateTime, toDateTime]);
-        const grouping = await db.query(groupingQuery, [fromDateTime, toDateTime]);
+        // 3️⃣ Detailed transaction list
+        const detailsQuery = `
+            SELECT 
+                name,
+                recharge_amount,
+                created_at
+            FROM es_payment
+            WHERE created_at BETWEEN ? AND ?
+              AND is_deleted = 'NO'
+            ORDER BY created_at DESC
+        `;
+
+        // Proper destructuring
+        const summaryRows = await db.query(summaryQuery, [fromDateTime, toDateTime]);
+        const groupingRows = await db.query(groupingQuery, [fromDateTime, toDateTime]);
+        const detailsRows = await db.query(detailsQuery, [fromDateTime, toDateTime]);
 
         res.json({
             success: true,
-            summary: summary[0],
-            recharge_breakdown: grouping
+            summary: summaryRows[0],
+            recharge_breakdown: groupingRows,
+            transactions: detailsRows
         });
 
     } catch (error) {
