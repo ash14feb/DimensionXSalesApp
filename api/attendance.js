@@ -335,7 +335,7 @@ router.get('/summary', authorize('manager', 'admin','staff'), async (req, res) =
             LEFT JOIN staff_attendance a ON u.user_id = a.user_id 
                 AND DATE(a.attendance_date) BETWEEN ? AND ?
             WHERE u.user_type IN ('staff', 'manager')
-                AND DATE(a.attendance_date) IS NOT NULL
+                AND DATE(a.attendance_date) IS NOT NULL AND u.is_active = 1 
         `;
 
         let attendanceParams = [start_date, end_date];
