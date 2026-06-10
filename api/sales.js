@@ -581,4 +581,225 @@ router.put('/:id', authorize('manager', 'admin'), async (req, res) => {
     }
 });
 
+
+//ActualSales
+router.post(
+    '/actual-sales',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const {
+                sales_date,
+                cash = 0,
+                card = 0,
+                upi_bank = 0,
+                upi_paytm = 0
+            } = req.body;
+
+            await db.query(
+                `INSERT INTO actual_sales
+                (
+                    sales_date,
+                    cash,
+                    card,
+                    upi_bank,
+                    upi_paytm
+                )
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    cash = VALUES(cash),
+                    card = VALUES(card),
+                    upi_bank = VALUES(upi_bank),
+                    upi_paytm = VALUES(upi_paytm)`,
+                [
+                    sales_date,
+                    cash,
+                    card,
+                    upi_bank,
+                    upi_paytm
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Actual sales saved successfully'
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Error saving actual sales'
+            });
+        }
+    }
+);
+
+router.put(
+    '/actual-sales',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const {
+                sales_date,
+                cash,
+                card,
+                upi_bank,
+                upi_paytm
+            } = req.body;
+
+            const existing = await db.query(
+                'SELECT id FROM actual_sales WHERE sales_date = ?',
+                [sales_date]
+            );
+
+            if (existing.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Actual sales record not found'
+                });
+            }
+
+            await db.query(
+                `UPDATE actual_sales
+                 SET cash = ?,
+                     card = ?,
+                     upi_bank = ?,
+                     upi_paytm = ?
+                 WHERE sales_date = ?`,
+                [
+                    cash,
+                    card,
+                    upi_bank,
+                    upi_paytm,
+                    sales_date
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Actual sales updated successfully'
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Error updating actual sales'
+            });
+        }
+    }
+);
+
+router.get(
+    '/actual-sales/:sales_date',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { sales_date } = req.params;
+
+            const result = await db.query(
+                'SELECT * FROM actual_sales WHERE sales_date = ?',
+                [sales_date]
+            );
+
+            res.json({
+                success: true,
+                data: result.length ? result[0] : null
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching actual sales'
+            });
+        }
+    }
+);
+
+router.get(
+    '/actual-sales/month',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { year, month } = req.query;
+
+            if (!year || !month) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'year and month are required'
+                });
+            }
+
+            const result = await db.query(
+                `
+                SELECT
+                    id,
+                    sales_date,
+                    cash,
+                    card,
+                    upi_bank,
+                    upi_paytm,
+                    (cash + card + upi_bank + upi_paytm) AS total_sales,
+                    created_at,
+                    updated_at
+                FROM actual_sales
+                WHERE YEAR(sales_date) = ?
+                  AND MONTH(sales_date) = ?
+                ORDER BY sales_date DESC
+                `,
+                [year, month]
+            );
+
+            res.json({
+                success: true,
+                data: result
+            });
+
+        } catch (error) {
+            console.error('Get actual sales by month error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching actual sales'
+            });
+        }
+    }
+);
+
+router.get(
+    '/actual-sales/month-summary',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { year, month } = req.query;
+
+            const result = await db.query(
+                `
+                SELECT
+                    COALESCE(SUM(cash), 0) AS cash,
+                    COALESCE(SUM(card), 0) AS card,
+                    COALESCE(SUM(upi_bank), 0) AS upi_bank,
+                    COALESCE(SUM(upi_paytm), 0) AS upi_paytm,
+                    COALESCE(SUM(cash + card + upi_bank + upi_paytm), 0) AS total_sales
+                FROM actual_sales
+                WHERE YEAR(sales_date) = ?
+                  AND MONTH(sales_date) = ?
+                `,
+                [year, month]
+            );
+
+            res.json({
+                success: true,
+                data: result[0]
+            });
+
+        } catch (error) {
+            console.error('Get actual sales summary error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching summary'
+            });
+        }
+    }
+);
 module.exports = router;
