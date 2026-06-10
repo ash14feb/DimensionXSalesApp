@@ -301,7 +301,7 @@ router.get('/summary', authorize('manager', 'admin','staff'), async (req, res) =
         let usersQuery = `
             SELECT user_id, full_name, username 
             FROM users 
-            WHERE user_type IN ('staff', 'manager')
+            WHERE user_type IN ('staff', 'manager') AND u.is_active = 1
         `;
         let usersParams = [];
 
