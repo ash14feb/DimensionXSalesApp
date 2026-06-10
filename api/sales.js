@@ -596,9 +596,16 @@ router.post(
                 upi_paytm = 0
             } = req.body;
 
+            if (!sales_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'sales_date is required'
+                });
+            }
+
             await db.query(
-                `INSERT INTO actual_sales
-                (
+                `
+                INSERT INTO actual_sales (
                     sales_date,
                     cash,
                     card,
@@ -610,7 +617,9 @@ router.post(
                     cash = VALUES(cash),
                     card = VALUES(card),
                     upi_bank = VALUES(upi_bank),
-                    upi_paytm = VALUES(upi_paytm)`,
+                    upi_paytm = VALUES(upi_paytm),
+                    updated_at = CURRENT_TIMESTAMP
+                `,
                 [
                     sales_date,
                     cash,
@@ -624,8 +633,10 @@ router.post(
                 success: true,
                 message: 'Actual sales saved successfully'
             });
+
         } catch (error) {
-            console.error(error);
+            console.error('Save actual sales error:', error);
+
             res.status(500).json({
                 success: false,
                 message: 'Error saving actual sales'
@@ -633,6 +644,7 @@ router.post(
         }
     }
 );
+
 
 router.put(
     '/actual-sales',
