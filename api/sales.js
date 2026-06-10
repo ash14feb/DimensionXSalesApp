@@ -912,8 +912,8 @@ router.get(
                     SUM(s.saleamount_dreamcube) AS total_dreamcube_sales,
                     SUM(s.saleamount_space) AS total_space_sales,
 
-                    SUM(s.vip_3k_count) AS total_3k_vip_cards,
-                    SUM(s.vip_5k_count) AS total_5k_vip_cards,
+                    SUM(s.saleamount_3k_vip) AS total_3k_vip_cards,
+                    SUM(s.saleamount_5k_vip) AS total_5k_vip_cards,
 
                     SUM(
                         s.saleamount_arcade +
