@@ -701,31 +701,6 @@ router.put(
     }
 );
 
-router.get(
-    '/actual-sales/:sales_date',
-    authorize('staff', 'manager', 'admin'),
-    async (req, res) => {
-        try {
-            const { sales_date } = req.params;
-
-            const result = await db.query(
-                'SELECT * FROM actual_sales WHERE sales_date = ?',
-                [sales_date]
-            );
-
-            res.json({
-                success: true,
-                data: result.length ? result[0] : null
-            });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({
-                success: false,
-                message: 'Error fetching actual sales'
-            });
-        }
-    }
-);
 
 router.get(
     '/actual-sales/month',
@@ -776,6 +751,34 @@ router.get(
         }
     }
 );
+
+router.get(
+    '/actual-sales/:sales_date',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { sales_date } = req.params;
+
+            const result = await db.query(
+                'SELECT * FROM actual_sales WHERE sales_date = ?',
+                [sales_date]
+            );
+
+            res.json({
+                success: true,
+                data: result.length ? result[0] : null
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching actual sales'
+            });
+        }
+    }
+);
+
+
 
 router.get(
     '/actual-sales/month-summary',
