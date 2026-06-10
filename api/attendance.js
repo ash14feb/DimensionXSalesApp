@@ -332,7 +332,7 @@ router.get('/summary', authorize('manager', 'admin','staff'), async (req, res) =
                     ELSE 0 
                 END as work_duration_minutes
             FROM users u
-            LEFT JOIN staff_attendance a ON u.user_id = a.user_id 
+            LEFT JOIN staff_attendance a ON u.user_id = a.user_id AND u.is_active = 1 
                 AND DATE(a.attendance_date) BETWEEN ? AND ?
             WHERE u.user_type IN ('staff', 'manager')
                 AND DATE(a.attendance_date) IS NOT NULL AND u.is_active = 1 
