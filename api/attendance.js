@@ -204,7 +204,7 @@ router.get('/', authorize('manager', 'admin','staff'), async (req, res) => {
         DATE_FORMAT(a.attendance_date, '%Y-%m-%d') as attendance_date_formatted
       FROM staff_attendance a
       JOIN stores s ON a.store_id = s.store_id
-      JOIN users u ON a.user_id = u.user_id
+      JOIN users u ON a.user_id = u.user_id AND u.is_active = 1
       WHERE 1=1
     `;
 
@@ -341,12 +341,12 @@ router.get('/summary', authorize('manager', 'admin','staff'), async (req, res) =
         let attendanceParams = [start_date, end_date];
 
         if (store_id) {
-            attendanceQuery += ' AND u.user_id IN (SELECT user_id FROM user_stores WHERE store_id = ?)';
+            attendanceQuery += ' AND u.user_id IN (SELECT user_id FROM user_stores WHERE  u.is_active = 1 AND store_id = ?)';
             attendanceParams.push(store_id);
         }
 
         if (user_id) {
-            attendanceQuery += ' AND u.user_id = ?';
+            attendanceQuery += ' AND u.is_active = 1 AND u.user_id = ?';
             attendanceParams.push(user_id);
         }
 
