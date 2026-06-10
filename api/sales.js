@@ -817,4 +817,101 @@ router.get(
         }
     }
 );
+
+
+router.post(
+    '/sales-by-staff',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const {
+                user_id,
+                sales_date,
+                sale_amount
+            } = req.body;
+
+            if (!user_id || !sales_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'user_id and sales_date are required'
+                });
+            }
+
+            await db.query(
+                `
+                INSERT INTO sales_by_staff
+                (
+                    user_id,
+                    sales_date,
+                    sale_amount
+                )
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    sale_amount = VALUES(sale_amount),
+                    updated_at = CURRENT_TIMESTAMP
+                `,
+                [
+                    user_id,
+                    sales_date,
+                    sale_amount || 0
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Sales by staff saved successfully'
+            });
+
+        } catch (error) {
+            console.error('Save sales by staff error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error saving sales by staff'
+            });
+        }
+    }
+);
+router.get(
+    '/sales-by-staff/:sales_date',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { sales_date } = req.params;
+
+            const result = await db.query(
+                `
+                SELECT
+                    s.*,
+                    u.name AS staff_name,
+                    (
+                        saleamount_arcade +
+                        saleamount_dreamcube +
+                        saleamount_space +
+                        saleamount_3k_vip +
+                        saleamount_5k_vip
+                    ) AS total_sales
+                FROM sales_by_staff s
+                LEFT JOIN users u ON u.id = s.user_id
+                WHERE s.sales_date = ?
+                ORDER BY u.name
+                `,
+                [sales_date]
+            );
+
+            res.json({
+                success: true,
+                data: result
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching sales by staff'
+            });
+        }
+    }
+);
 module.exports = router;
