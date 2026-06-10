@@ -909,7 +909,7 @@ router.get(
                 FROM sales_by_staff s
                 LEFT JOIN users u ON u.id = s.user_id
                 WHERE s.sales_date = ?
-                ORDER BY u.name
+                ORDER BY u.full_name
                 `,
                 [sales_date]
             );
