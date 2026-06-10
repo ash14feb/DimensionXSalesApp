@@ -827,7 +827,11 @@ router.post(
             const {
                 user_id,
                 sales_date,
-                sale_amount
+                saleamount_arcade = 0,
+                saleamount_dreamcube = 0,
+                saleamount_space = 0,
+                saleamount_3k_vip = 0,
+                saleamount_5k_vip = 0
             } = req.body;
 
             if (!user_id || !sales_date) {
@@ -839,21 +843,32 @@ router.post(
 
             await db.query(
                 `
-                INSERT INTO sales_by_staff
-                (
+                INSERT INTO sales_by_staff (
                     user_id,
                     sales_date,
-                    sale_amount
+                    saleamount_arcade,
+                    saleamount_dreamcube,
+                    saleamount_space,
+                    saleamount_3k_vip,
+                    saleamount_5k_vip
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
-                    sale_amount = VALUES(sale_amount),
+                    saleamount_arcade = VALUES(saleamount_arcade),
+                    saleamount_dreamcube = VALUES(saleamount_dreamcube),
+                    saleamount_space = VALUES(saleamount_space),
+                    saleamount_3k_vip = VALUES(saleamount_3k_vip),
+                    saleamount_5k_vip = VALUES(saleamount_5k_vip),
                     updated_at = CURRENT_TIMESTAMP
                 `,
                 [
                     user_id,
                     sales_date,
-                    sale_amount || 0
+                    saleamount_arcade,
+                    saleamount_dreamcube,
+                    saleamount_space,
+                    saleamount_3k_vip,
+                    saleamount_5k_vip
                 ]
             );
 
@@ -883,7 +898,7 @@ router.get(
                 `
                 SELECT
                     s.*,
-                    u.name AS staff_name,
+                    u.full_name AS staff_name,
                     (
                         saleamount_arcade +
                         saleamount_dreamcube +
