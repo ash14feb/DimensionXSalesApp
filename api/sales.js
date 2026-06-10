@@ -887,6 +887,68 @@ router.post(
         }
     }
 );
+
+router.get(
+    '/sales-by-staff/month-summary',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { year, month } = req.query;
+
+            if (!year || !month) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'year and month are required'
+                });
+            }
+
+            const result = await db.query(
+                `
+                SELECT
+                    s.user_id,
+                    u.full_name AS staff_name,
+
+                    SUM(s.saleamount_arcade) AS total_arcade_sales,
+                    SUM(s.saleamount_dreamcube) AS total_dreamcube_sales,
+                    SUM(s.saleamount_space) AS total_space_sales,
+
+                    SUM(s.vip_3k_count) AS total_3k_vip_cards,
+                    SUM(s.vip_5k_count) AS total_5k_vip_cards,
+
+                    SUM(
+                        s.saleamount_arcade +
+                        s.saleamount_dreamcube +
+                        s.saleamount_space
+                    ) AS total_sales_amount
+
+                FROM sales_by_staff s
+                LEFT JOIN users u ON u.user_id = s.user_id
+
+                WHERE YEAR(s.sales_date) = ?
+                  AND MONTH(s.sales_date) = ?
+
+                GROUP BY s.user_id, u.full_name
+
+                ORDER BY total_sales_amount DESC
+                `,
+                [year, month]
+            );
+
+            res.json({
+                success: true,
+                data: result
+            });
+
+        } catch (error) {
+            console.error('Get monthly staff summary error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching monthly staff summary'
+            });
+        }
+    }
+);
 router.get(
     '/sales-by-staff/:sales_date',
     authorize('staff', 'manager', 'admin'),
@@ -929,4 +991,5 @@ router.get(
         }
     }
 );
+
 module.exports = router;
