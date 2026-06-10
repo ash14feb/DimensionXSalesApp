@@ -907,7 +907,7 @@ router.get(
                         saleamount_5k_vip
                     ) AS total_sales
                 FROM sales_by_staff s
-                LEFT JOIN users u ON u.id = s.user_id
+                LEFT JOIN users u ON u.user_id = s.user_id
                 WHERE s.sales_date = ?
                 ORDER BY u.full_name
                 `,
