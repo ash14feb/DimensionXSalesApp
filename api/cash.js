@@ -313,4 +313,76 @@ function calculateMonthlyStats(registers) {
     return stats;
 }
 
+
+
+
+
+router.put('/cash-taken', authorize('manager', 'admin'), async (req, res) => {
+    try {
+        const { store_id, date, cash_taken } = req.body;
+
+        const register = await db.query(
+            `SELECT * 
+             FROM cash_register 
+             WHERE store_id = ? AND register_date = ?`,
+            [store_id, date]
+        );
+
+        if (register.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cash register not found'
+            });
+        }
+
+        const cashSales = await db.query(
+            `SELECT COALESCE(SUM(cash_amount), 0) AS total_cash_sales
+             FROM sales
+             WHERE store_id = ? AND sale_date = ?`,
+            [store_id, date]
+        );
+
+        const opening_cash = parseFloat(register[0].opening_cash || 0);
+        const closing_cash = parseFloat(register[0].closing_cash || 0);
+        const total_cash_sales = parseFloat(cashSales[0].total_cash_sales || 0);
+        const cashTaken = parseFloat(cash_taken || 0);
+
+        const calculated_cash = opening_cash + total_cash_sales - cashTaken;
+        const cash_difference = closing_cash - calculated_cash;
+
+        await db.query(
+            `UPDATE cash_register
+             SET cash_taken = ?,
+                 calculated_cash = ?,
+                 cash_difference = ?
+             WHERE store_id = ? 
+               AND register_date = ?`,
+            [
+                cashTaken,
+                calculated_cash,
+                cash_difference,
+                store_id,
+                date
+            ]
+        );
+
+        res.json({
+            success: true,
+            message: 'Cash taken updated successfully',
+            data: {
+                cash_taken: cashTaken,
+                calculated_cash,
+                cash_difference
+            }
+        });
+
+    } catch (error) {
+        console.error('Update cash taken error:', error);
+
+        res.status(500).json({
+            success: false,
+            message: 'Error updating cash taken'
+        });
+    }
+});
 module.exports = router;
