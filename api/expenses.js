@@ -206,4 +206,214 @@ router.get('/monthly', authorize('staff', 'manager', 'admin'), async (req, res) 
         });
     }
 });
+
+
+router.post(
+    '/admin-expenses',
+    authorize('manager', 'admin'),
+    async (req, res) => {
+        try {
+            const {
+                expense_date,
+                amount,
+                expense_by,
+                description
+            } = req.body;
+
+            await db.query(
+                `
+                INSERT INTO admin_expenses
+                (
+                    expense_date,
+                    amount,
+                    expense_by,
+                    description
+                )
+                VALUES (?, ?, ?, ?)
+                `,
+                [
+                    expense_date,
+                    amount || 0,
+                    expense_by || '',
+                    description || null
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Expense saved successfully'
+            });
+
+        } catch (error) {
+            console.error('Save expense error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error saving expense'
+            });
+        }
+    }
+);
+
+router.put(
+    '/admin-expenses/:id',
+    authorize('manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const {
+                expense_date,
+                amount,
+                expense_by,
+                description
+            } = req.body;
+
+            await db.query(
+                `
+                UPDATE admin_expenses
+                SET
+                    expense_date = ?,
+                    amount = ?,
+                    expense_by = ?,
+                    description = ?
+                WHERE id = ?
+                `,
+                [
+                    expense_date,
+                    amount,
+                    expense_by,
+                    description,
+                    id
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Expense updated successfully'
+            });
+
+        } catch (error) {
+            console.error('Update expense error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error updating expense'
+            });
+        }
+    }
+);
+
+router.get(
+    '/admin-expenses/month',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { year, month } = req.query;
+
+            const result = await db.query(
+                `
+                SELECT
+                    id,
+                    expense_date,
+                    amount,
+                    expense_by,
+                    description,
+                    created_at,
+                    updated_at
+                FROM admin_expenses
+                WHERE YEAR(expense_date) = ?
+                  AND MONTH(expense_date) = ?
+                ORDER BY expense_date DESC, id DESC
+                `,
+                [year, month]
+            );
+
+            res.json({
+                success: true,
+                data: result
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching expenses'
+            });
+        }
+    }
+);
+
+router.get(
+    '/admin-expenses/:id',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const result = await db.query(
+                `
+                SELECT *
+                FROM admin_expenses
+                WHERE id = ?
+                `,
+                [id]
+            );
+
+            res.json({
+                success: true,
+                data: result.length ? result[0] : null
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching expense'
+            });
+        }
+    }
+);
+
+router.delete(
+    '/admin-expenses/:id',
+    authorize('manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const existing = await db.query(
+                'SELECT id FROM admin_expenses WHERE id = ?',
+                [id]
+            );
+
+            if (existing.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Expense not found'
+                });
+            }
+
+            await db.query(
+                'DELETE FROM admin_expenses WHERE id = ?',
+                [id]
+            );
+
+            res.json({
+                success: true,
+                message: 'Expense deleted successfully'
+            });
+
+        } catch (error) {
+            console.error('Delete expense error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error deleting expense'
+            });
+        }
+    }
+);
 module.exports = router;
