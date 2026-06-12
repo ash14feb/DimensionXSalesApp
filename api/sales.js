@@ -992,4 +992,148 @@ router.get(
     }
 );
 
+
+
+
+
+
+
+router.post(
+    '/admin-cash-taken',
+    authorize('manager', 'admin'),
+    async (req, res) => {
+        try {
+            const {
+                cash_date,
+                amount = 0,
+                cash_taken_by
+            } = req.body;
+
+            if (!cash_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'cash_date is required'
+                });
+            }
+
+            await db.query(
+                `
+                INSERT INTO admin_cash_taken
+                (
+                    cash_date,
+                    amount,
+                    cash_taken_by
+                )
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    amount = VALUES(amount),
+                    cash_taken_by = VALUES(cash_taken_by),
+                    updated_at = CURRENT_TIMESTAMP
+                `,
+                [
+                    cash_date,
+                    amount,
+                    cash_taken_by || ''
+                ]
+            );
+
+            res.json({
+                success: true,
+                message: 'Admin cash taken saved successfully'
+            });
+
+        } catch (error) {
+            console.error('Save admin cash taken error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error saving admin cash taken'
+            });
+        }
+    }
+);
+
+router.get(
+    '/admin-cash-taken/month',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { year, month } = req.query;
+
+            if (!year || !month) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'year and month are required'
+                });
+            }
+
+            const result = await db.query(
+                `
+                SELECT
+                    id,
+                    cash_date,
+                    amount,
+                    cash_taken_by,
+                    created_at,
+                    updated_at
+                FROM admin_cash_taken
+                WHERE YEAR(cash_date) = ?
+                  AND MONTH(cash_date) = ?
+                ORDER BY cash_date DESC
+                `,
+                [year, month]
+            );
+
+            res.json({
+                success: true,
+                data: result
+            });
+
+        } catch (error) {
+            console.error('Get admin cash taken month error:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching admin cash taken records'
+            });
+        }
+    }
+);
+
+router.get(
+    '/admin-cash-taken/:cash_date',
+    authorize('staff', 'manager', 'admin'),
+    async (req, res) => {
+        try {
+            const { cash_date } = req.params;
+
+            const result = await db.query(
+                `
+                SELECT *
+                FROM admin_cash_taken
+                WHERE cash_date = ?
+                `,
+                [cash_date]
+            );
+
+            res.json({
+                success: true,
+                data: result.length ? result[0] : null
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching admin cash taken'
+            });
+        }
+    }
+);
+
+
+
 module.exports = router;
+
+
