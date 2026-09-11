@@ -8,8 +8,12 @@ const { authMiddleware, authorize } = require('../middleware/auth');
 // + monthly targets + month-to-date achieved. Shareable with staff.
 router.get('/display', async (req, res) => {
   try {
-    const now = new Date();
-    const year = now.getFullYear(), month = now.getMonth() + 1;
+    // Use the date passed by the viewer (IST from browser) so the numbers
+    // match the Entry screen exactly; fall back to server date.
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(req.query.date || ''));
+    const ref = m ? new Date(`${m[1]}-${m[2]}-${m[3]}T12:00:00`) : new Date();
+    const year = ref.getFullYear(), month = ref.getMonth() + 1;
+    const now = ref;
     const ms = String(month).padStart(2, '0');
     const trows = await db.query('SELECT * FROM monthly_targets WHERE target_year=? AND target_month=?', [year, month]);
     const t = trows[0];
@@ -35,7 +39,16 @@ router.get('/display', async (req, res) => {
        FROM sales s WHERE s.sale_date >= ? AND s.sale_date < LAST_DAY(?)+INTERVAL 1 DAY GROUP BY s.sale_date`,
       [`${year}-${ms}-01`, `${year}-${ms}-01`]
     ).catch(() => []);
-    const key = (v) => String(v).substring(0, 10);
+    const key = (v) => {
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      if (typeof v === 'string') {
+        const mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+        if (mm) return `${mm[1]}-${mm[2]}-${mm[3]}`;
+        const p = new Date(v);
+        if (!isNaN(p)) return p.toISOString().slice(0, 10);
+      }
+      return String(v).substring(0, 10);
+    };
     const stat = (field) => {
       let w = 0, wc = 0, sa = 0, sac = 0, su = 0, suc = 0;
       prevRows.forEach((r) => {
@@ -48,19 +61,10 @@ router.get('/display', async (req, res) => {
     };
     const maxDay = now.getDate();
     const dim = daysInMonth(year, month);
-    const achieved = { arcade: 0, dreamcube: 0, spacewalk: 0 };
-    currRows.forEach((r) => {
-      const ds = key(r.sale_date); if (!ds.startsWith(`${year}-${ms}`)) return;
-      const d = parseInt(ds.split('-')[2], 10);
-      achieved.arcade += Number(r.arcade_total_sales) || 0;
-      achieved.dreamcube += Number(r.dreamcube_total_sales) || 0;
-      achieved.spacewalk += Number(r.toys_total_sales) || 0;
-      void d;
-    });
-    // MTD only up to today
+    // Month-to-date achieved (only days up to today) — same as Entry screen
     const mtd = { arcade: 0, dreamcube: 0, spacewalk: 0 };
     currRows.forEach((r) => {
-      const ds = key(r.sale_date);
+      const ds = key(r.sale_date); if (!ds.startsWith(`${year}-${ms}`)) return;
       const d = parseInt(ds.split('-')[2], 10);
       if (d <= maxDay) {
         mtd.arcade += Number(r.arcade_total_sales) || 0;
