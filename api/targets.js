@@ -91,11 +91,13 @@ router.get('/display', async (req, res) => {
       return dim ? target / dim : 0;
     };
     const BUFFER = { arcade: 2000, dreamcube: 500, spacewalk: 100 };
+    // Friday = fixed final targets (no buffer); otherwise computed + buffer
+    const isFriday = dow === 5;
     res.json({ success: true, year, month, date: now.toISOString().slice(0, 10),
       monthly, mtd: { arcade: Math.round(mtd.arcade), dreamcube: Math.round(mtd.dreamcube), spacewalk: Math.round(mtd.spacewalk) },
       today: {
-        arcade: Math.round(rev(monthly.arcade, mtd.arcade, stat('arcade_total_sales'))) + BUFFER.arcade,
-        dreamcube: Math.round(rev(monthly.dreamcube, mtd.dreamcube, stat('dreamcube_total_sales'))) + BUFFER.dreamcube,
+        arcade: isFriday ? 16000 : Math.round(rev(monthly.arcade, mtd.arcade, stat('arcade_total_sales'))) + BUFFER.arcade,
+        dreamcube: isFriday ? 5000 : Math.round(rev(monthly.dreamcube, mtd.dreamcube, stat('dreamcube_total_sales'))) + BUFFER.dreamcube,
         spacewalk: Math.round(rev(monthly.spacewalk, mtd.spacewalk, stat('toys_total_sales'))) + BUFFER.spacewalk
       } });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: 'Error loading staff targets' }); }
