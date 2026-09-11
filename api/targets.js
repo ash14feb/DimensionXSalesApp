@@ -90,13 +90,13 @@ router.get('/display', async (req, res) => {
       if (remDays > 0 && rem > 0) return rem / remDays;
       return dim ? target / dim : 0;
     };
-    const BUFFER = 2500;
+    const BUFFER = { arcade: 2000, dreamcube: 500, spacewalk: 100 };
     res.json({ success: true, year, month, date: now.toISOString().slice(0, 10),
       monthly, mtd: { arcade: Math.round(mtd.arcade), dreamcube: Math.round(mtd.dreamcube), spacewalk: Math.round(mtd.spacewalk) },
       today: {
-        arcade: Math.round(rev(monthly.arcade, mtd.arcade, stat('arcade_total_sales'))) + BUFFER,
-        dreamcube: Math.round(rev(monthly.dreamcube, mtd.dreamcube, stat('dreamcube_total_sales'))) + BUFFER,
-        spacewalk: Math.round(rev(monthly.spacewalk, mtd.spacewalk, stat('toys_total_sales'))) + BUFFER
+        arcade: Math.round(rev(monthly.arcade, mtd.arcade, stat('arcade_total_sales'))) + BUFFER.arcade,
+        dreamcube: Math.round(rev(monthly.dreamcube, mtd.dreamcube, stat('dreamcube_total_sales'))) + BUFFER.dreamcube,
+        spacewalk: Math.round(rev(monthly.spacewalk, mtd.spacewalk, stat('toys_total_sales'))) + BUFFER.spacewalk
       } });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: 'Error loading staff targets' }); }
 });
@@ -191,8 +191,65 @@ router.get('/calendar', authorize('staff', 'manager', 'admin'), async (req, res)
       const target = Math.round(perDay);
       days.push({ date, day: d, target, actual, achieved: target > 0 && actual >= target });
     }
+    // Overlay recorded achievement status captured at sales-entry save time
+    try {
+      const recs = await db.query(
+        `SELECT target_date, target_value, actual_value, achieved FROM target_achievements WHERE store=? AND target_date >= ? AND target_date < LAST_DAY(?)+INTERVAL 1 DAY`,
+        [store, first, first]
+      );
+      const rmap = {};
+      recs.forEach(r => {
+        const k = r.target_date instanceof Date ? r.target_date.toISOString().slice(0, 10) : String(r.target_date).substring(0, 10);
+        rmap[k] = r;
+      });
+      days.forEach(d => {
+        const r = rmap[d.date];
+        if (r) {
+          d.target = Math.round(Number(r.target_value) || 0);
+          d.actual = Math.round(Number(r.actual_value) || 0);
+          d.achieved = Number(r.achieved) === 1;
+          d.recorded = true;
+        }
+      });
+    } catch (_) { /* table may not exist yet */ }
     res.json({ success: true, store, store_id: storeId, monthly_target: monthly, daily_target: Math.round(perDay), days });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: 'Error fetching target calendar' }); }
+});
+
+// POST /api/targets/record — capture per-day achievement at sales-entry save
+// Body: { date: YYYY-MM-DD, records: [{ store, target_value, actual_value }] }
+router.post('/record', authorize('staff', 'manager', 'admin'), async (req, res) => {
+  try {
+    const { date, records } = req.body;
+    if (!date || !Array.isArray(records)) return res.status(400).json({ success: false, message: 'date and records required' });
+    for (const r of records) {
+      const store = String(r.store || '').toLowerCase();
+      if (!['arcade', 'dreamcube', 'spacewalk'].includes(store)) continue;
+      const tv = Number(r.target_value) || 0, av = Number(r.actual_value) || 0;
+      const ach = tv > 0 && av >= tv ? 1 : 0;
+      await db.query(
+        `INSERT INTO target_achievements (target_date, store, target_value, actual_value, achieved)
+         VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE target_value=VALUES(target_value), actual_value=VALUES(actual_value), achieved=VALUES(achieved)`,
+        [date, store, tv, av, ach]
+      );
+    }
+    res.json({ success: true, message: 'Target achievements recorded' });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: 'Error recording achievements' }); }
+});
+
+// GET /api/targets/achievements?year=&month=&store=
+router.get('/achievements', authorize('staff', 'manager', 'admin'), async (req, res) => {
+  try {
+    const year = parseInt(req.query.year), month = parseInt(req.query.month);
+    const store = String(req.query.store || 'arcade').toLowerCase();
+    if (!year || !month) return res.status(400).json({ success: false, message: 'year and month required' });
+    const first = `${year}-${String(month).padStart(2, '0')}-01`;
+    const rows = await db.query(
+      `SELECT target_date, store, target_value, actual_value, achieved FROM target_achievements WHERE store=? AND target_date >= ? AND target_date < LAST_DAY(?)+INTERVAL 1 DAY ORDER BY target_date`,
+      [store, first, first]
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: 'Error fetching achievements' }); }
 });
 
 module.exports = router;
