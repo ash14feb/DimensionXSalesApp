@@ -14,6 +14,7 @@ const reportsRoutes = require('./api/reports');
 const mosquesRoutes = require('./api/mosques');
 const arcadeRoutes = require('./api/arcadepayment');
 const targetsRoutes = require('./api/targets');
+const dreamcubeRoutes = require('./api/dreamcube');
 const app = express();
 
 // Middleware
@@ -45,6 +46,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/mosques', mosquesRoutes);
 app.use('/api/arcadepayment', arcadeRoutes);
 app.use('/api/targets', targetsRoutes);
+app.use('/api/dreamcube', dreamcubeRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

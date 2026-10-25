@@ -1,17 +1,16 @@
 
 const mysql = require('mysql2/promise');
 
-class Database {
-    constructor() {
-        this.pool = mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            port: process.env.DB_PORT || 19693,
-            ssl: {
-                rejectUnauthorized: false,  // CHANGE THIS LINE - Accept self-signed certs
-                ca: `-----BEGIN CERTIFICATE-----
+const createConfig = (databaseName, options) => ({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: databaseName,
+    port: process.env.DB_PORT || 19693,
+    dateStrings: options ? options.dateStrings : undefined,
+    ssl: {
+        rejectUnauthorized: false,  // CHANGE THIS LINE - Accept self-signed certs
+        ca: `-----BEGIN CERTIFICATE-----
 MIIEUDCCArigAwIBAgIUKiqk/u+ik2fHMGykJFB4Owz1WhUwDQYJKoZIhvcNAQEM
 BQAwQDE+MDwGA1UEAww1ZWQ3MzI5Y2YtZTY4YS00ZDRhLTllODItN2UzZmFjMzkz
 NjEyIEdFTiAxIFByb2plY3QgQ0EwHhcNMjYwMTE4MTIzNjAyWhcNMzYwMTE2MTIz
@@ -37,14 +36,19 @@ fbZMfoNTIHNPltFHBLaB3D4dKlqOs5riH8omEgbbxDkxFnf0E9+ZBGuI6/fj8ZqM
 rYnAXHNKq+M+kgdsY8e3YW3EExG2FAu8ZPxYpPjI2RIbHhUw4UBvWuBTv8vUuix8
 AL3rig==
 -----END CERTIFICATE-----`
-            },
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
+    },
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+class Database {
+    constructor(databaseName, options) {
+        this.database = databaseName || process.env.DB_NAME;
+        this.pool = mysql.createPool(createConfig(this.database, options));
 
         // For debugging
-        console.log(process.env.DB_NAME );
+        console.log(this.database);
     }
 
     async query(sql, params) {
@@ -62,4 +66,9 @@ AL3rig==
     }
 }
 
-module.exports = new Database();
+const database = new Database();
+
+// Create an extra pool pointing at another database on the same server
+database.create = (databaseName, options) => new Database(databaseName, options);
+
+module.exports = database;
