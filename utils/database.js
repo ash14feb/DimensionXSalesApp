@@ -1,65 +1,115 @@
+const SESSION_PATH = '/api/session';
 
-const mysql = require('mysql2/promise');
-
-class Database {
-    constructor() {
-        this.pool = mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            port: process.env.DB_PORT || 19693,
-            ssl: {
-                rejectUnauthorized: false,  // CHANGE THIS LINE - Accept self-signed certs
-                ca: `-----BEGIN CERTIFICATE-----
-MIIEUDCCArigAwIBAgIUKiqk/u+ik2fHMGykJFB4Owz1WhUwDQYJKoZIhvcNAQEM
-BQAwQDE+MDwGA1UEAww1ZWQ3MzI5Y2YtZTY4YS00ZDRhLTllODItN2UzZmFjMzkz
-NjEyIEdFTiAxIFByb2plY3QgQ0EwHhcNMjYwMTE4MTIzNjAyWhcNMzYwMTE2MTIz
-NjAyWjBAMT4wPAYDVQQDDDVlZDczMjljZi1lNjhhLTRkNGEtOWU4Mi03ZTNmYWMz
-OTM2MTIgR0VOIDEgUHJvamVjdCBDQTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCC
-AYoCggGBAMkpMkjhF9nHE1PyqNUITpKLRQylaN1KTJoNSRVwtD5Tk8Og/vjMBeeG
-Aj5RLdf42tkMmZ+9cIbsFg6IC+s9FvBsypHAqn50pu6EAzkbcIBfqgro3Q5PK21D
-NbmmqqL0z5Eai0gsGwad5fQJ2NrdK4zNK9vHKPeLidxgjO0F0otCOcFWFpH931LB
-bl9lAvYKoN7PjuIoydLZKvlwNLPynDh/uoGYxk7VW43Rso3iTd5zkYqIl4AEVzxg
-bFvb4w5KnoF4x+xCtdlYu7IJFuaeFQ9DRd43fQhlvre/7h+ZjRq6Pu7D/DErSxBv
-qUxCvwmnGB45OFEKae2lIdVEvmUxZVQCjpEMDWqFl9DePqk7bkPFeHiX7SiNAjPl
-sp4VhlnqS1GAYhu3U2rOCauDNbYgea2gxZIdCOhSCznZ2e9gpBnqe8EzubXXiOYt
-VHtfUkvSd4QXfQ8vKWNzWaO58F/Q0wfBMqK3IBNQEV3hNUbeiB/DohddPw8cbP6h
-bZvzDwkmQwIDAQABo0IwQDAdBgNVHQ4EFgQUBCAdbwxSOZFxMqG7s90mR5VeG2kw
-EgYDVR0TAQH/BAgwBgEB/wIBADALBgNVHQ8EBAMCAQYwDQYJKoZIhvcNAQEMBQAD
-ggGBAH/YKSCEQdwlTjrc4d1DQb7thQO4RY7jFDEkWJNqs2jhtJj+3gEA659BhIyV
-YAFH6GM5feDQlMX+bBtJPP7iaBjoMZxPntnYphHO5TpXsxTOGRTR7Q64qMwsrJp4
-qz9Zye5SeAflGVayvEHKz3ShFdc7802hC7+PqSsf+I7Fo4dlCz7WGLWq8lX7OWCq
-wTwZ7l7OxDveakw1bWNCr66u9VtoCnkL7Gg/4/jFEeliAsvWA2aAJxxSI/qUXqkz
-YgnVzFp6uc5X0B5eNL7RYbQjYkOBZt8cJOpVZ7D3rlRw3oC3hbLrPuDbu6uPQGaJ
-tq3y7phqJUOIPktwLipSgxk1K9UOKwvQCctEsxs3/fgpDHbEXzgkTimV8G0AD6WO
-fbZMfoNTIHNPltFHBLaB3D4dKlqOs5riH8omEgbbxDkxFnf0E9+ZBGuI6/fj8ZqM
-rYnAXHNKq+M+kgdsY8e3YW3EExG2FAu8ZPxYpPjI2RIbHhUw4UBvWuBTv8vUuix8
-AL3rig==
------END CERTIFICATE-----`
-            },
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
-
-        // For debugging
-        console.log(process.env.DB_NAME );
+// Drop-in stand-in for a mysql2 pooled connection. Each method is one HTTP
+// call to the bridge, which keeps the real connection (and its transaction)
+// open server-side under this session id.
+class BridgeConnection {
+    constructor(db, sessionId) {
+        this.db = db;
+        this.sessionId = sessionId;
+        this.released = false;
     }
 
-    async query(sql, params) {
+    async _call(action, body = {}) {
+        if (this.released) {
+            throw new Error('Connection has been released');
+        }
+        return this.db._request('POST', `${SESSION_PATH}/${this.sessionId}/${action}`, body);
+    }
+
+    async execute(sql, params = []) {
+        const rows = await this._call('execute', { sql, params });
+        // mysql2 returns [rows, fields]; callers only use rows.
+        return [rows, undefined];
+    }
+
+    async query(sql, params = []) {
+        return this.execute(sql, params);
+    }
+
+    async beginTransaction() {
+        await this._call('begin');
+    }
+
+    async commit() {
+        await this._call('commit');
+    }
+
+    async rollback() {
+        await this._call('rollback');
+    }
+
+    async release() {
+        if (this.released) return;
+        this.released = true;
         try {
-            const [results] = await this.pool.execute(sql, params);
-            return results;
+            await this.db._request('POST', `${SESSION_PATH}/${this.sessionId}/release`, {});
+        } catch (error) {
+            console.error('Failed to release DB session:', error.message);
+        }
+    }
+
+    destroy() {
+        return this.release();
+    }
+}
+
+class Dbarcade {
+    constructor() {
+        this.baseUrl = process.env.OCI_API_URL || 'https://db.unifylead.com';
+        this.apiKey = process.env.OCI_API_KEY;
+        this.dbName = process.env.DB_NAME || 'sparkpos';
+
+        console.log(this.dbName);
+    }
+
+    async _request(method, path, body) {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': this.apiKey,
+                'x-db-name': this.dbName
+            },
+            body: body === undefined ? undefined : JSON.stringify(body)
+        });
+
+        let payload;
+        try {
+            payload = await response.json();
+        } catch {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            throw new Error(payload.error || `Bridge request failed with ${response.status}`);
+        }
+
+        return payload.data;
+    }
+
+    async query(sql, params = []) {
+        try {
+            return await this._request('POST', '/api/sql', { sql, params });
         } catch (error) {
             console.error('Database query error:', error);
             throw error;
         }
     }
 
+    async transaction(statements = []) {
+        try {
+            return await this._request('POST', '/api/transaction', { statements });
+        } catch (error) {
+            console.error('Database transaction error:', error);
+            throw error;
+        }
+    }
+
     async getConnection() {
-        return await this.pool.getConnection();
+        const data = await this._request('POST', `${SESSION_PATH}/connect`, {});
+        return new BridgeConnection(this, data.sessionId);
     }
 }
 
-module.exports = new Database();
+module.exports = new Dbarcade();
